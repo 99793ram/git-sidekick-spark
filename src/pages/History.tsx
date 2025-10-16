@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Calendar, Eye } from "lucide-react";
+import { Search, Calendar, Download } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -13,16 +16,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 
 interface Document {
   id: string;
   document_name: string;
   document_type: string;
-  file_path: string;
   created_at: string;
   status: string;
+  file_path: string;
 }
 
 const History = () => {
@@ -30,6 +31,7 @@ const History = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDocuments();
@@ -37,6 +39,13 @@ const History = () => {
 
   const fetchDocuments = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        navigate("/signin");
+        return;
+      }
+
       const { data, error } = await supabase
         .from('documents')
         .select('*')
@@ -48,29 +57,39 @@ const History = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to fetch documents",
+        description: error.message || "Failed to load documents",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewDocument = async (filePath: string) => {
+  const handleViewDocument = async (filePath: string, fileName: string) => {
     try {
       const { data, error } = await supabase.storage
         .from('documents')
-        .createSignedUrl(filePath, 60);
+        .download(filePath);
 
       if (error) throw error;
-      
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank');
-      }
+
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: "Document downloaded successfully",
+      });
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to view document",
+        description: error.message || "Failed to download document",
       });
     }
   };
@@ -113,6 +132,10 @@ const History = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
+              <Button variant="outline" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                Filter by date
+              </Button>
             </div>
 
             {/* Table */}
@@ -130,13 +153,13 @@ const History = () => {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         Loading documents...
                       </TableCell>
                     </TableRow>
                   ) : filteredDocuments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         {searchQuery ? "No documents found matching your search" : "No documents uploaded yet"}
                       </TableCell>
                     </TableRow>
@@ -152,15 +175,16 @@ const History = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewDocument(doc.file_path)}
-                            className="gap-2"
-                          >
-                            <Eye className="h-4 w-4" />
-                            View
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewDocument(doc.file_path, doc.document_name)}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              Download
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
