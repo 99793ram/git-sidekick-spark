@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import authVisual from "@/assets/auth-visual.jpg";
+import AnimatedBackground from "@/components/AnimatedBackground";
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -44,31 +44,17 @@ const SignIn = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Left side - Visual */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <img 
-          src={authVisual} 
-          alt="ScanDoc" 
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/90 to-primary-hover/80" />
-      </div>
-
-      {/* Right side - Form */}
-      <div className="flex w-full flex-col justify-center px-6 lg:w-1/2 lg:px-20">
-        <div className="mx-auto w-full max-w-md">
-          <div className="text-right mb-8">
-            <span className="text-sm text-muted-foreground">Don't have an account? </span>
-            <Link to="/signup" className="text-sm font-semibold text-primary hover:underline">
-              Sign up
-            </Link>
-          </div>
-
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">Sign in to <span className="text-primary">ScanDoc</span></h1>
-            <p className="text-muted-foreground">
-              Welcome to ScanDoc, please enter your login details below to using the app.
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-muted/20">
+      <AnimatedBackground />
+      
+      <div className="relative z-10 w-full max-w-md px-6">
+        <div className="bg-card/80 backdrop-blur-md border border-border rounded-2xl shadow-2xl p-8">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold mb-2">
+              Sign in to <span className="text-primary">ScanDoc</span>
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Welcome back! Please enter your login details below.
             </p>
           </div>
 
@@ -116,7 +102,7 @@ const SignIn = () => {
                 <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">OR</span>
+                <span className="bg-card px-2 text-muted-foreground">OR</span>
               </div>
             </div>
 
@@ -131,7 +117,14 @@ const SignIn = () => {
             </Button>
           </form>
 
-          <p className="text-center text-xs text-muted-foreground mt-8">
+          <div className="mt-6 text-center">
+            <span className="text-sm text-muted-foreground">Don't have an account? </span>
+            <Link to="/signup" className="text-sm font-semibold text-primary hover:underline">
+              Sign up
+            </Link>
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-6">
             Copyright © 2025 | Powered by Wan Buffer Services
           </p>
         </div>
