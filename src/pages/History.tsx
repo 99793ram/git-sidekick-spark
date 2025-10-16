@@ -1,9 +1,10 @@
+import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Calendar } from "lucide-react";
+import { Search, Calendar, Eye } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -12,16 +13,81 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface Document {
+  id: string;
+  document_name: string;
+  document_type: string;
+  file_path: string;
+  created_at: string;
+  status: string;
+}
 
 const History = () => {
-  const documents = [
-    {
-      name: "My Resume.pdf",
-      type: "Resume",
-      date: "Oct 16, 2025, 9:54:35 AM",
-      status: "Failed",
-    },
-  ];
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  const fetchDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setDocuments(data || []);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to fetch documents",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewDocument = async (filePath: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(filePath, 60);
+
+      if (error) throw error;
+      
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to view document",
+      });
+    }
+  };
+
+  const filteredDocuments = documents.filter(doc =>
+    doc.document_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -43,12 +109,10 @@ const History = () => {
                 <Input
                   placeholder="Search by document name..."
                   className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button variant="outline" className="gap-2">
-                <Calendar className="h-4 w-4" />
-                Filter by date
-              </Button>
             </div>
 
             {/* Table */}
@@ -59,20 +123,48 @@ const History = () => {
                     <TableHead>Document Name</TableHead>
                     <TableHead>Document Type</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Status</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {documents.map((doc, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{doc.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{doc.type}</TableCell>
-                      <TableCell className="text-muted-foreground">{doc.date}</TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant="destructive">{doc.status}</Badge>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        Loading documents...
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : filteredDocuments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        {searchQuery ? "No documents found matching your search" : "No documents uploaded yet"}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDocuments.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium">{doc.document_name}</TableCell>
+                        <TableCell className="text-muted-foreground capitalize">{doc.document_type}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatDate(doc.created_at)}</TableCell>
+                        <TableCell>
+                          <Badge variant={doc.status === 'success' ? 'default' : 'destructive'}>
+                            {doc.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewDocument(doc.file_path)}
+                            className="gap-2"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -80,17 +172,8 @@ const History = () => {
             {/* Pagination */}
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Showing 1-1 of 1 scans.
+                Showing {filteredDocuments.length} document{filteredDocuments.length !== 1 ? 's' : ''}.
               </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled>
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">Page 1 of 1</span>
-                <Button variant="outline" size="sm" disabled>
-                  Next
-                </Button>
-              </div>
             </div>
           </CardContent>
         </Card>

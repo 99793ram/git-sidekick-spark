@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const DocumentScanner = () => {
   const [activeTab, setActiveTab] = useState("resume");
@@ -39,8 +40,41 @@ const DocumentScanner = () => {
 
     setUploading(true);
     try {
-      // Simulate upload - replace with actual upload logic
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          variant: "destructive",
+          title: "Authentication required",
+          description: "Please sign in to upload documents",
+        });
+        return;
+      }
+
+      // Upload file to storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, selectedFile);
+
+      if (uploadError) throw uploadError;
+
+      // Save document record to database
+      const { error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          user_id: user.id,
+          document_name: selectedFile.name,
+          document_type: activeTab,
+          file_path: fileName,
+          file_size: selectedFile.size,
+          status: 'success'
+        });
+
+      if (dbError) throw dbError;
       
       toast({
         title: "Success",
@@ -51,11 +85,11 @@ const DocumentScanner = () => {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to scan document",
+        description: error.message || "Failed to scan document",
       });
     } finally {
       setUploading(false);
